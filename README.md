@@ -111,6 +111,10 @@ runwatch
 vrt
 ```
 
+DOSBox-X acknowledges these resume commands before leaving the debugger loop.
+The tool result means the command was accepted; it is not a snapshot of state
+after execution resumes.
+
 `debug_breakpoint(action, args)`
 
 Wrapper around common breakpoint commands. Supported actions:

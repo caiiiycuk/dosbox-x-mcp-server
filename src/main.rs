@@ -1,7 +1,15 @@
+use std::{
+    env,
+    fs::{self, File, OpenOptions},
+    io::{self, Write},
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+
 use rmcp::{
     ServiceExt, handler::server::wrapper::Parameters, schemars, tool, tool_router, transport::stdio,
 };
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{EnvFilter, fmt::MakeWriter};
 
 mod control_server;
 use control_server::ControlServer;
@@ -192,14 +200,96 @@ fn format_command(command: &str, args: &str) -> String {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+#[derive(Clone)]
+struct TeeMakeWriter {
+    log_file: Arc<Mutex<File>>,
+}
+
+struct TeeWriter {
+    log_file: Arc<Mutex<File>>,
+    stderr: io::Stderr,
+}
+
+impl<'a> MakeWriter<'a> for TeeMakeWriter {
+    type Writer = TeeWriter;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        TeeWriter {
+            log_file: Arc::clone(&self.log_file),
+            stderr: io::stderr(),
+        }
+    }
+}
+
+impl Write for TeeWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.stderr.write_all(buf)?;
+
+        let mut log_file = self
+            .log_file
+            .lock()
+            .map_err(|_| io::Error::other("log file lock poisoned"))?;
+        log_file.write_all(buf)?;
+
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.stderr.flush()?;
+
+        let mut log_file = self
+            .log_file
+            .lock()
+            .map_err(|_| io::Error::other("log file lock poisoned"))?;
+        log_file.flush()
+    }
+}
+
+fn init_logging() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
-        .with_writer(std::io::stderr)
+        .with_writer(TeeMakeWriter {
+            log_file: Arc::new(Mutex::new(open_log_file()?)),
+        })
         .init();
+
+    Ok(())
+}
+
+fn open_log_file() -> anyhow::Result<File> {
+    let log_dir = home_dir()?.join(".dosbox-x-mcp-server");
+    fs::create_dir_all(&log_dir)?;
+
+    Ok(OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_dir.join("server.log"))?)
+}
+
+fn home_dir() -> anyhow::Result<PathBuf> {
+    if let Some(home) = env::var_os("HOME").filter(|value| !value.is_empty()) {
+        return Ok(PathBuf::from(home));
+    }
+
+    if let Some(user_profile) = env::var_os("USERPROFILE").filter(|value| !value.is_empty()) {
+        return Ok(PathBuf::from(user_profile));
+    }
+
+    if let (Some(home_drive), Some(home_path)) = (env::var_os("HOMEDRIVE"), env::var_os("HOMEPATH"))
+    {
+        let mut path = PathBuf::from(home_drive);
+        path.push(home_path);
+        return Ok(path);
+    }
+
+    Err(anyhow::anyhow!("home directory environment is not set"))
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    init_logging()?;
 
     let control = ControlServer::start().await?;
     let service = DosboxDebugServer { control }.serve(stdio()).await?;
