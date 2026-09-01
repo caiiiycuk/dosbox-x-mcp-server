@@ -248,7 +248,8 @@ impl Write for TeeWriter {
 fn init_logging() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("warn,control=info,dosbox_x_mcp_server=info")),
         )
         .with_writer(TeeMakeWriter {
             log_file: Arc::new(Mutex::new(open_log_file()?)),

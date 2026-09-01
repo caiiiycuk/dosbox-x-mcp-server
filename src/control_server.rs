@@ -73,11 +73,14 @@ impl ControlServer {
     pub async fn request(&self, command: impl Into<String>) -> Result<ControlResponse, String> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (reply_tx, reply_rx) = oneshot::channel();
+        let command = sanitize_request_command(command.into());
+
+        info!(target: "control", request_id = id, command = %command, "DOSBox-X request queued");
 
         self.request_tx
             .send(ControlRequest {
                 id,
-                command: sanitize_request_command(command.into()),
+                command,
                 reply_tx,
             })
             .await
@@ -116,6 +119,8 @@ async fn connection_loop(listener: TcpListener, mut request_rx: mpsc::Receiver<C
                 let Some(request) = request else {
                     return;
                 };
+
+                warn!(target: "control", request_id = request.id, command = %request.command, "DOSBox-X request rejected: not connected");
 
                 let _ = request
                     .reply_tx
@@ -170,7 +175,11 @@ async fn process_request(
 ) -> io::Result<()> {
     let request_line = format!("REQ {} {}\n", request.id, request.command);
 
+    info!(target: "control", request_id = request.id, command = %request.command, "DOSBox-X request send begin");
+
     if let Err(error) = writer.write_all(request_line.as_bytes()).await {
+        error!(target: "control", request_id = request.id, command = %request.command, %error, "DOSBox-X request send failed");
+
         let _ = request
             .reply_tx
             .send(Err(format!("failed to send request to DOSBox-X: {error}")));
@@ -178,20 +187,35 @@ async fn process_request(
     }
 
     if let Err(error) = writer.flush().await {
+        error!(target: "control", request_id = request.id, command = %request.command, %error, "DOSBox-X request flush failed");
+
         let _ = request
             .reply_tx
             .send(Err(format!("failed to flush request to DOSBox-X: {error}")));
         return Err(error);
     }
 
+    info!(target: "control", request_id = request.id, command = %request.command, "DOSBox-X request sent; waiting for response");
+
     let result = timeout(REQUEST_TIMEOUT, read_response(request.id, lines)).await;
 
     match result {
         Ok(Ok(response)) => {
+            info!(
+                target: "control",
+                request_id = request.id,
+                command = %request.command,
+                ok = response.ok,
+                line_count = response.lines.len(),
+                "DOSBox-X response received"
+            );
+
             let _ = request.reply_tx.send(Ok(response));
             Ok(())
         }
         Ok(Err(error)) => {
+            error!(target: "control", request_id = request.id, command = %request.command, %error, "DOSBox-X response read failed");
+
             let _ = request.reply_tx.send(Err(format!(
                 "failed to read response from DOSBox-X: {error}"
             )));
@@ -199,6 +223,8 @@ async fn process_request(
         }
         Err(_) => {
             let error = io::Error::new(io::ErrorKind::TimedOut, "DOSBox-X request timed out");
+            error!(target: "control", request_id = request.id, command = %request.command, %error, "DOSBox-X response timed out");
+
             let _ = request.reply_tx.send(Err(error.to_string()));
             Err(error)
         }
