@@ -1,0 +1,12 @@
+[package]
+name = "dosbox-x-mcp-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+rmcp = { version = "3.1.4", features = ["server", "transport-io"] }
+serde = "1.0.229"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
