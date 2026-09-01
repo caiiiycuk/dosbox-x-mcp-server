@@ -1,4 +1,5 @@
 # DOSBox-X MCP Server
+[![CI](https://github.com/caiiiycuk/dosbox-x-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/caiiiycuk/dosbox-x-mcp-server/actions/workflows/ci.yml)
 
 Minimal MCP server for controlling the DOSBox-X built-in debugger from an
 agent through MCP tools.
