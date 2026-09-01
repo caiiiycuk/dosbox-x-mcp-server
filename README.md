@@ -13,6 +13,10 @@ cargo build --release
 
 ## OpenCode
 
+Download `dosbox-x-mcp-server` from the
+[GitHub Releases](https://github.com/caiiiycuk/dosbox-x-mcp-server/releases)
+section, then add it to `opencode.json`.
+
 Add this to `opencode.json` in your project root or to your global OpenCode
 config:
 
