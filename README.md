@@ -76,7 +76,6 @@ opencode
 Then start a DOSBox-X build that includes the MCP debugger control changes:
 
 ```sh
-cd /home/caiiiycuk/js-dos/dosbox-x
 ./dosbox-x
 ```
 
