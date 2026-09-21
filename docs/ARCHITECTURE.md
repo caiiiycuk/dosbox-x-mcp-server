@@ -7,16 +7,19 @@ returns captured debugger output.
 
 ## Control Connection
 
-The MCP server listens on:
+The MCP server first tries to listen on:
 
 ```text
 127.0.0.1:58991
 ```
 
-DOSBox-X acts as a TCP client and connects to that address when the debugger
-system is initialized. Start this MCP server before starting DOSBox-X if you
-want the connection to be available immediately. DOSBox-X reconnects in the
-background if the server is not yet running or if the connection drops.
+If port `58991` is in use, the server chooses another free port on `127.0.0.1`.
+Call the `dosbox_mcp_port` MCP tool to get the selected port.
+
+DOSBox-X acts as a TCP client and connects to the selected address when the
+debugger system is initialized. Start this MCP server before starting DOSBox-X
+if you want the connection to be available immediately. DOSBox-X reconnects in
+the background if the server is not yet running or if the connection drops.
 
 The process uses MCP stdio for the MCP client connection and writes logs to
 stderr and to:
@@ -25,7 +28,8 @@ stderr and to:
 $HOME/.dosbox-x-mcp-server/server.log
 ```
 
-DOSBox-X connects separately over TCP on `127.0.0.1:58991`.
+DOSBox-X connects separately over TCP on `127.0.0.1` and the port returned by
+`dosbox_mcp_port`.
 
 ## Wire Protocol
 
@@ -57,6 +61,11 @@ The server serializes calls to DOSBox-X. Only one debugger request is sent
 and awaited at a time, even if multiple MCP tool calls arrive concurrently.
 
 ## MCP Tools
+
+`dosbox_mcp_port`
+
+Returns the TCP port used by the DOSBox-X control server. The tool does not
+require a DOSBox-X connection.
 
 `dosbox_ping`
 
@@ -160,4 +169,3 @@ DOSBox-X request timed out
 
 Timeouts are treated as connection errors internally, so later calls can use
 a fresh DOSBox-X reconnect instead of waiting behind a stuck request.
-

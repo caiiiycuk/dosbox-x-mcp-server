@@ -59,8 +59,15 @@ For development, you can run through Cargo instead:
 }
 ```
 
-OpenCode starts the MCP server over stdio. The MCP server listens for DOSBox-X
-on `127.0.0.1:58991` and writes logs to:
+OpenCode starts the MCP server over stdio. The MCP server first tries to listen
+for DOSBox-X on `127.0.0.1:58991`. If port `58991` is already in use, the
+server chooses another free local port.
+
+Ask the agent to call `dosbox_dosbox_mcp_port` to get the selected port. The
+MCP tool itself is named `dosbox_mcp_port`; OpenCode adds the `dosbox_` server
+prefix from the configuration above. The tool works before DOSBox-X connects.
+
+The server writes logs to:
 
 ```text
 $HOME/.dosbox-x-mcp-server/server.log

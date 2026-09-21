@@ -1,5 +1,6 @@
 use std::{
     io,
+    net::{Ipv4Addr, SocketAddr},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -15,7 +16,7 @@ use tokio::{
 };
 use tracing::{error, info, warn};
 
-pub const CONTROL_ADDR: &str = "127.0.0.1:58991";
+pub const DEFAULT_CONTROL_PORT: u16 = 58991;
 
 const CHANNEL_SIZE: usize = 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -24,6 +25,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct ControlServer {
     request_tx: mpsc::Sender<ControlRequest>,
     next_id: Arc<AtomicU64>,
+    address: SocketAddr,
 }
 
 #[derive(Debug)]
@@ -54,9 +56,11 @@ struct ControlRequest {
 
 impl ControlServer {
     pub async fn start() -> io::Result<Self> {
-        let listener = TcpListener::bind(CONTROL_ADDR).await?;
+        let default_address = SocketAddr::from((Ipv4Addr::LOCALHOST, DEFAULT_CONTROL_PORT));
+        let listener = bind_control_listener(default_address).await?;
+        let address = listener.local_addr()?;
 
-        info!(target: "control", address = CONTROL_ADDR, "listening");
+        info!(target: "control", %address, "listening");
 
         let (request_tx, request_rx) = mpsc::channel::<ControlRequest>(CHANNEL_SIZE);
 
@@ -67,7 +71,12 @@ impl ControlServer {
         Ok(Self {
             request_tx,
             next_id: Arc::new(AtomicU64::new(1)),
+            address,
         })
+    }
+
+    pub fn port(&self) -> u16 {
+        self.address.port()
     }
 
     pub async fn request(&self, command: impl Into<String>) -> Result<ControlResponse, String> {
@@ -89,6 +98,22 @@ impl ControlServer {
         reply_rx
             .await
             .map_err(|_| "control task dropped the request".to_string())?
+    }
+}
+
+async fn bind_control_listener(default_address: SocketAddr) -> io::Result<TcpListener> {
+    match TcpListener::bind(default_address).await {
+        Ok(listener) => Ok(listener),
+        Err(error) => {
+            warn!(
+                target: "control",
+                address = %default_address,
+                %error,
+                "default control port is unavailable; choosing another port"
+            );
+
+            TcpListener::bind(SocketAddr::new(default_address.ip(), 0)).await
+        }
     }
 }
 
@@ -327,7 +352,24 @@ fn sanitize_request_command(command: String) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_begin_line, parse_end_line, sanitize_request_command};
+    use tokio::net::TcpListener;
+
+    use super::{
+        bind_control_listener, parse_begin_line, parse_end_line, sanitize_request_command,
+    };
+
+    #[tokio::test]
+    async fn uses_another_port_when_default_is_unavailable() {
+        let occupied_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let occupied_address = occupied_listener.local_addr().unwrap();
+
+        let listener = bind_control_listener(occupied_address).await.unwrap();
+
+        assert_ne!(
+            listener.local_addr().unwrap().port(),
+            occupied_address.port()
+        );
+    }
 
     #[test]
     fn parses_response_markers() {

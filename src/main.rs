@@ -92,6 +92,11 @@ struct DosboxDebugServer {
 
 #[tool_router(server_handler)]
 impl DosboxDebugServer {
+    #[tool(description = "Return the TCP port used by the DOSBox-X debugger control server.")]
+    fn dosbox_mcp_port(&self) -> String {
+        self.control.port().to_string()
+    }
+
     #[tool(description = "Check whether DOSBox-X is connected to the debugger control server.")]
     async fn dosbox_ping(&self) -> String {
         self.control_request("PING").await
