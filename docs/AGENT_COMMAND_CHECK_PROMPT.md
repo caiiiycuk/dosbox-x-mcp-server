@@ -6,34 +6,38 @@ against a running DOSBox-X instance.
 ```text
 You are checking the DOSBox-X MCP server integration. Your goal is to verify
 that every exposed `dosbox_*` MCP tool works, including tools that change
-debugger/emulator state, and that the MCP server log confirms healthy request
-serialization and connection handling.
+debugger/emulator state. If the MCP server log is available, also use it to
+check request serialization and connection handling.
 
 Prerequisites:
 - The DOSBox-X MCP server is running.
 - DOSBox-X was built with the MCP debugger control changes.
 - DOSBox-X is running and connected to the MCP server.
-- You have access to the MCP server log file:
-  `$HOME/.dosbox-x-mcp-server/server.log`.
-- The server also mirrors the same log output to stderr.
+- For a native local run, the MCP server log may be available at
+  `$HOME/.dosbox-x-mcp-server/server.log` or through captured server stderr.
+- For a browser build connected over WebSocket, do not assume that the MCP
+  server's filesystem or stderr is available.
 
 Important rules:
 - Do not assume a timeout is harmless. Treat any timeout as a failure unless
-  the server log clearly explains an expected disconnect/reconnect.
+  an available server log clearly explains an expected disconnect/reconnect.
 - After every state-changing command, verify that the next command still works.
-- When several calls are made in parallel, confirm from the server log that
-  requests were serialized: one request sent to DOSBox-X, one response read,
-  then the next request.
-- Use these control log messages as serialization evidence:
+- When the server log is available and several calls are made in parallel,
+  confirm that requests were serialized: one request sent to DOSBox-X, one
+  response read, then the next request.
+- Use these control log messages as serialization evidence when available:
   `DOSBox-X request send begin`, `DOSBox-X request sent; waiting for response`,
   and `DOSBox-X response received`.
-- At the end, compare your observed tool results with the MCP server log and
-  explicitly report whether the log shows unexpected timeout, disconnect,
-  reconnect, panic, aborted request, or dropped request messages.
+- When the server log is unavailable, do not infer serialization from tool
+  completion order. Verify that every parallel call completes, and mark the
+  log and serialization checks as SKIPPED.
+- At the end, compare your observed tool results with the MCP server log when
+  it is available. Report whether it shows an unexpected timeout, disconnect,
+  reconnect, panic, aborted request, or dropped request.
 - `CancelledNotification` with `AbortError` is a client-side cancellation
-  signal. Treat it as a failure only if it appears in the current run's log and
-  correlates with an aborted/failed tool call; do not use it as DOSBox-X
-  request/response serialization evidence.
+  signal. When a log is available, treat the signal as a failure only if it
+  appears in the current run and correlates with an aborted or failed tool
+  call. Do not use it as DOSBox-X request/response serialization evidence.
 
 Test sequence:
 
@@ -44,7 +48,8 @@ Test sequence:
 2. Check connection health.
    - Call `dosbox_dosbox_ping({})`.
    - Expected result: `PONG`.
-   - If it returns `ERR`, stop and inspect the server log before continuing.
+   - If it returns `ERR`, stop. Inspect the server log if it is available, and
+     otherwise report the exact error returned by the tool.
 
 3. Check live debugger discovery and basic raw execution.
    - Call `dosbox_debug_help({})`.
@@ -110,11 +115,14 @@ Test sequence:
    - If unsupported, record that they were skipped because the build does not
      expose heavy-debug commands.
 
-10. Server log verification.
-    - Open `$HOME/.dosbox-x-mcp-server/server.log`.
-    - If the server was launched with redirected stderr, you may also compare
-      against that captured stderr output; it should contain the same log
-      stream.
+10. Server log verification when the log is available.
+    - For a local native run, open
+      `$HOME/.dosbox-x-mcp-server/server.log`. If the server was launched with
+      redirected stderr, you may use that captured stderr output instead.
+    - For a browser build connected over WebSocket, use the log only if the
+      test environment explicitly provides server filesystem or stderr access.
+    - If neither source is available, mark the whole server log verification
+      step as SKIPPED and state that server-side serialization was not checked.
     - Confirm that each successful tool call has a matching DOSBox-X request
       and response.
     - For each DOSBox-X request id, verify this ordered pattern:
@@ -137,7 +145,9 @@ Final report format:
 - List every `dosbox_*` tool tested.
 - Mark each as PASS, FAIL, or SKIPPED.
 - Include the exact command arguments for state-changing tools.
-- Include any timeout/disconnect evidence from the server log.
-- State whether the MCP server log agrees with the observed tool results.
+- Include any timeout or disconnect evidence from the server log when it is
+  available.
+- State whether the MCP server log agrees with the observed tool results, or
+  state that log verification was skipped because the log was unavailable.
 - If anything failed, provide the shortest reproducible sequence.
 ```

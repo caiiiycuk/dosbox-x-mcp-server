@@ -60,12 +60,16 @@ For development, you can run through Cargo instead:
 ```
 
 OpenCode starts the MCP server over stdio. The MCP server first tries to listen
-for DOSBox-X on `127.0.0.1:58991`. If port `58991` is already in use, the
-server chooses another free local port.
+for native DOSBox-X on TCP port `127.0.0.1:58991` and for browser builds on
+WebSocket port `127.0.0.1:58992`. If either port is already in use, the server
+chooses another free local port for that transport.
 
 Ask the agent to call `dosbox_dosbox_mcp_port` to get the selected port. The
 MCP tool itself is named `dosbox_mcp_port`; OpenCode adds the `dosbox_` server
 prefix from the configuration above. The tool works before DOSBox-X connects.
+
+For a browser build, call `dosbox_dosbox_mcp_websocket_port` instead. Its MCP
+tool name is `dosbox_mcp_websocket_port`.
 
 The server writes logs to:
 
@@ -87,10 +91,21 @@ Then start a DOSBox-X build that includes the MCP debugger control changes:
 ./dosbox-x
 ```
 
-DOSBox-X connects back to the MCP server automatically. In OpenCode, use tools
-such as `dosbox_dosbox_ping`, `dosbox_debug_break`,
-`dosbox_debug_exec`, `dosbox_debug_snapshot`, and
-`dosbox_debug_run`.
+Native DOSBox-X connects to the TCP port automatically when `mcp_server` uses
+the value returned by `dosbox_mcp_port`.
+
+For a browser build, set the following value in the `[dosbox]` section of its
+configuration:
+
+```ini
+mcp_server=<port returned by dosbox_mcp_websocket_port>
+```
+
+The browser connects to `ws://127.0.0.1:<port>/`. The server accepts one active
+DOSBox-X connection at a time across both transports.
+
+In OpenCode, use tools such as `dosbox_dosbox_ping`, `dosbox_debug_break`,
+`dosbox_debug_exec`, `dosbox_debug_snapshot`, and `dosbox_debug_run`.
 
 ## Verify integration
 

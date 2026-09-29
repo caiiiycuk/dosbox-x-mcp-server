@@ -5,21 +5,23 @@ DOSBox-X over a local text protocol. The primary primitive is
 `debug_exec(command)`, which runs an existing DOSBox-X debugger command and
 returns captured debugger output.
 
-## Control Connection
+## Control connection
 
-The MCP server first tries to listen on:
+The MCP server first tries to listen on two local ports:
 
 ```text
-127.0.0.1:58991
+TCP        127.0.0.1:58991
+WebSocket  127.0.0.1:58992
 ```
 
-If port `58991` is in use, the server chooses another free port on `127.0.0.1`.
-Call the `dosbox_mcp_port` MCP tool to get the selected port.
+If either port is in use, the server chooses another free port on `127.0.0.1`
+for that transport. Call `dosbox_mcp_port` for the native TCP port. Call
+`dosbox_mcp_websocket_port` for the browser WebSocket port.
 
-DOSBox-X acts as a TCP client and connects to the selected address when the
-debugger system is initialized. Start this MCP server before starting DOSBox-X
-if you want the connection to be available immediately. DOSBox-X reconnects in
-the background if the server is not yet running or if the connection drops.
+Native DOSBox-X acts as a TCP client. Browser builds connect to
+`ws://127.0.0.1:<websocket port>/`. Both clients connect when the debugger
+system is initialized, and both reconnect if the connection drops. The server
+accepts one active DOSBox-X connection at a time across both transports.
 
 The process uses MCP stdio for the MCP client connection and writes logs to
 stderr and to:
@@ -28,10 +30,10 @@ stderr and to:
 $HOME/.dosbox-x-mcp-server/server.log
 ```
 
-DOSBox-X connects separately over TCP on `127.0.0.1` and the port returned by
-`dosbox_mcp_port`.
+DOSBox-X connects separately over TCP or WebSocket on `127.0.0.1`. The
+`mcp_server` setting contains the port returned by the matching MCP tool.
 
-## Wire Protocol
+## Wire protocol
 
 The wire protocol between this server and DOSBox-X is line-oriented text:
 
@@ -65,6 +67,11 @@ and awaited at a time, even if multiple MCP tool calls arrive concurrently.
 `dosbox_mcp_port`
 
 Returns the TCP port used by the DOSBox-X control server. The tool does not
+require a DOSBox-X connection.
+
+`dosbox_mcp_websocket_port`
+
+Returns the WebSocket port used by browser DOSBox-X builds. The tool does not
 require a DOSBox-X connection.
 
 `dosbox_ping`

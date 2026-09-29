@@ -97,6 +97,11 @@ impl DosboxDebugServer {
         self.control.port().to_string()
     }
 
+    #[tool(description = "Return the WebSocket port used by browser DOSBox-X builds.")]
+    fn dosbox_mcp_websocket_port(&self) -> String {
+        self.control.websocket_port().to_string()
+    }
+
     #[tool(description = "Check whether DOSBox-X is connected to the debugger control server.")]
     async fn dosbox_ping(&self) -> String {
         self.control_request("PING").await
